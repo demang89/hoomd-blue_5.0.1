@@ -53,7 +53,7 @@ void TwoStepLangevin::integrateStepOne(uint64_t timestep)
     ArrayHandle<Scalar3> h_gamma_r(m_gamma_r, access_location::host, access_mode::read);
 
     const BoxDim& box = m_pdata->getBox();
-
+    Scalar shear_rate = this->m_SR;
     // perform the first half step of velocity verlet
     // r(t+deltaT) = r(t) + v(t)*deltaT + (1/2)a(t)*deltaT^2
     // v(t+deltaT/2) = v(t) + (1/2)a*deltaT
@@ -73,9 +73,11 @@ void TwoStepLangevin::integrateStepOne(uint64_t timestep)
         h_pos.data[j].z += dz;
         // particles may have been moved slightly outside the box by the above steps, wrap them back
         // into place
+        int img0 = h_image.data[j].y;
         box.wrap(h_pos.data[j], h_image.data[j]);
+        img0 -= h_image.data[j].y;
 
-        h_vel.data[j].x += Scalar(1.0 / 2.0) * h_accel.data[j].x * m_deltaT;
+        h_vel.data[j].x += Scalar(1.0 / 2.0) * h_accel.data[j].x * m_deltaT + (img0 * shear_rate);
         h_vel.data[j].y += Scalar(1.0 / 2.0) * h_accel.data[j].y * m_deltaT;
         h_vel.data[j].z += Scalar(1.0 / 2.0) * h_accel.data[j].z * m_deltaT;
         }
@@ -245,6 +247,10 @@ void TwoStepLangevin::integrateStepTwo(uint64_t timestep)
     // v(t+deltaT) = v(t+deltaT/2) + 1/2 * a(t+deltaT)*deltaT
     uint16_t seed = m_sysdef->getSeed();
 
+    Scalar shear_rate = this->m_SR;
+    const BoxDim& box_global = m_pdata->getGlobalBox();
+    Scalar Ly = box_global.getL().y;
+
     for (unsigned int group_idx = 0; group_idx < group_size; group_idx++)
         {
         unsigned int j = m_group->getMemberIndex(group_idx);
@@ -269,7 +275,8 @@ void TwoStepLangevin::integrateStepTwo(uint64_t timestep)
         Scalar coeff = fast::sqrt(Scalar(6.0) * gamma * currentTemp / m_deltaT);
         if (m_noiseless_t)
             coeff = Scalar(0.0);
-        Scalar bd_fx = rx * coeff - gamma * h_vel.data[j].x;
+        Scalar vinf = shear_rate / Ly * h_pos.data[j].y;
+        Scalar bd_fx = rx * coeff - gamma * (h_vel.data[j].x - vinf);
         Scalar bd_fy = ry * coeff - gamma * h_vel.data[j].y;
         Scalar bd_fz = rz * coeff - gamma * h_vel.data[j].z;
 
@@ -347,7 +354,7 @@ void TwoStepLangevin::integrateStepTwo(uint64_t timestep)
                 bf_torque = rotate(q, bf_torque);
                 h_net_torque.data[j].x += bf_torque.x;
                 h_net_torque.data[j].y += bf_torque.y;
-                h_net_torque.data[j].z += bf_torque.z;
+                h_net_torque.data[j].z += bf_torque.z - Scalar(0.5) * gamma_r.z * shear_rate / Ly;
 
                 if (D < 3)
                     h_net_torque.data[j].x = 0;

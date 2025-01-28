@@ -64,6 +64,11 @@ class PYBIND11_EXPORT ForceCompute : public Compute
         m_deltaT = dt;
         }
 
+    virtual void setSR(Scalar shear_rate)
+        {
+        m_SR = shear_rate;
+        }
+
 #ifdef ENABLE_MPI
     //! Pre-compute the forces
     /*! This method is called in MPI simulations BEFORE the particles are migrated
@@ -210,6 +215,7 @@ class PYBIND11_EXPORT ForceCompute : public Compute
         }
 
     Scalar m_deltaT; //!< timestep size (required for some types of non-conservative forces)
+    Scalar m_SR;
 
     GPUArray<Scalar4> m_force; //!< m_force.x,m_force.y,m_force.z are the x,y,z components of the
                                //!< force, m_force.u is the PE

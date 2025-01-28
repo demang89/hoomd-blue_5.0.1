@@ -43,6 +43,7 @@ class EvaluatorPairDLVO
         Scalar A;
         Scalar a1;
         Scalar a2;
+        Scalar kn;
 
         DEVICE void load_shared(char*& ptr, unsigned int& available_bytes) { }
 
@@ -57,7 +58,7 @@ class EvaluatorPairDLVO
 #endif
 
 #ifndef __HIPCC__
-        param_type() : kappa(0), Z(0), A(0) { }
+        param_type() : kappa(0), Z(0), A(0), kn(0) { }
 
         param_type(pybind11::dict v, bool managed = false)
             {
@@ -66,6 +67,7 @@ class EvaluatorPairDLVO
             A = v["A"].cast<Scalar>();
             a1 = v["a1"].cast<Scalar>();
             a2 = v["a2"].cast<Scalar>();
+            kn = v["kn"].cast<Scalar>();
             }
 
         pybind11::dict asDict()
@@ -76,6 +78,7 @@ class EvaluatorPairDLVO
             v["A"] = A;
             v["a1"] = a1;
             v["a2"] = a2;
+            v["kn"] = kn;
             return v;
             }
 #endif
@@ -87,14 +90,13 @@ class EvaluatorPairDLVO
         \param _params Per type pair parameters of this potential
     */
     DEVICE EvaluatorPairDLVO(Scalar _rsq, Scalar _rcutsq, const param_type& _params)
-        : rsq(_rsq), rcutsq(_rcutsq), kappa(_params.kappa), Z(_params.Z), A(_params.A)
+        : rsq(_rsq), rcutsq(_rcutsq), kappa(_params.kappa), Z(_params.Z), A(_params.A), kn(_params.kn)
         {
         radsum = _params.a1 + _params.a2;
         radsub = _params.a1 - _params.a2;
         radprod = _params.a1 * _params.a2;
         radsumsq = _params.a1 * _params.a1 + _params.a2 * _params.a2;
         radsubsq = _params.a1 * _params.a1 - _params.a2 * _params.a2;
-        delta = radsum - Scalar(1.0);
         }
 
     //! DLVO doesn't use charge
@@ -128,6 +130,9 @@ class EvaluatorPairDLVO
         // compute the force divided by r in force_divr
         if (r < rcut && kappa != 0)
             {
+            Scalar rmin = Scalar(1.01) * radsum;
+            if (r < radsum) force_divr = (radsum - r) * kn;
+            if (r < rmin) r = rmin;
             Scalar rmds = r - radsum;
             Scalar rmdsqs = r * r - radsum * radsum;
             Scalar rmdsqm = r * r - radsub * radsub;
@@ -140,7 +145,7 @@ class EvaluatorPairDLVO
             Scalar fatrterm1inv = Scalar(1.0) / fatrterm1 * Scalar(1.0) / fatrterm1;
             Scalar forceatr_divr
                 = -Scalar(32.0) * A / Scalar(3.0) * radprod * radprod * radprod * fatrterm1inv;
-            force_divr = forcerep_divr + forceatr_divr;
+            force_divr += (forcerep_divr + forceatr_divr);
 
             Scalar engt1 = radprod * rmdsqsinv * A / Scalar(3.0);
             Scalar engt2 = radprod * rmdsqminv * A / Scalar(3.0);
@@ -199,12 +204,12 @@ class EvaluatorPairDLVO
     Scalar kappa;    //!< kappa parameter extracted from the params passed to the constructor
     Scalar Z;        //!< Z parameter extracted from the params passed to the constructor
     Scalar A;        //!< A parameter extracted from the params passed to the constructor
+    Scalar kn;       //!< kn parameter extracted from the params passed to the constructor
     Scalar radsum;   //!< radsum parameter extracted from the call to setDiameter
     Scalar radsub;   //!< radsub parameter extracted from the call to setDiameter
     Scalar radprod;  //!< radprod parameter extracted from the call to setDiameter
     Scalar radsumsq; //!< radsumsq parameter extracted from the call to setDiameter
     Scalar radsubsq; //!< radsubsq parameter extracted from the call to setDiameter
-    Scalar delta;    //!< Diameter sum minus one
     };
 
     } // end namespace md

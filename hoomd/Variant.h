@@ -593,6 +593,42 @@ class PYBIND11_EXPORT VariantPower : public Variant
     double m_inv_end;
     };
 
+class PYBIND11_EXPORT VariantCosinusoid : public Variant
+    {
+    public:
+    VariantCosinusoid(Scalar value, uint64_t t_start, Scalar omega)
+        {
+        setValue(value);
+        setTStart(t_start);
+        setOmega(omega);
+        }
+
+    Scalar operator()(uint64_t timestep)
+        {
+        return m_value*cos(m_omega*Scalar(timestep - m_t_start));
+        }
+
+    void setValue(Scalar value){m_value = value;}
+
+    Scalar getValue() const {return m_value;}
+
+    void setTStart(uint64_t t_start) {m_t_start = t_start;}
+
+    uint64_t getTStart() const {return m_t_start;}
+
+    void setOmega(Scalar omega) {m_omega = omega;}
+
+    Scalar getOmega() const {return m_omega;}
+
+    Scalar min() {return -m_value;}
+
+    Scalar max() {return m_value;}
+    protected:
+    Scalar m_value;
+    uint64_t m_t_start;
+    Scalar m_omega;
+    };
+
 namespace detail
     {
 /// Export Variant classes to Python

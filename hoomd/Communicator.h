@@ -387,7 +387,15 @@ class PYBIND11_EXPORT Communicator
 
     void addMeshDefinition(std::shared_ptr<MeshDefinition> meshdef);
 
+    virtual void setSR(Scalar shear_rate)
+        {
+        m_SR = shear_rate;
+        }
+
     protected:
+
+    Scalar m_SR;
+
     //! Helper class to perform the communication tasks related to bonded groups
     template<class group_data> class GroupCommunicator
         {

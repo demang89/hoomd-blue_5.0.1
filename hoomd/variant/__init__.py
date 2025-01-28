@@ -31,5 +31,6 @@ __all__ = [
     "Ramp",
     "Variant",
     "box",
+    "Cosinusoid",
     "variant_like",
 ]

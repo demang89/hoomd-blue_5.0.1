@@ -22,8 +22,8 @@ namespace hoomd
 /** @param sysdef System to update
     @param deltaT Time step to use
 */
-Integrator::Integrator(std::shared_ptr<SystemDefinition> sysdef, Scalar deltaT)
-    : Updater(sysdef, std::make_shared<PeriodicTrigger>(1)), m_deltaT(deltaT)
+Integrator::Integrator(std::shared_ptr<SystemDefinition> sysdef, Scalar deltaT, std::shared_ptr<Variant> vinf)
+    : Updater(sysdef, std::make_shared<PeriodicTrigger>(1)), m_deltaT(deltaT), m_vinf(vinf), m_SR(0)
     {
 #ifdef ENABLE_MPI
     if (m_sysdef->isDomainDecomposed())
@@ -83,6 +83,20 @@ void Integrator::setDeltaT(Scalar deltaT)
 Scalar Integrator::getDeltaT()
     {
     return m_deltaT;
+    }
+
+void Integrator::setSR(Scalar shear_rate)
+    {
+    for (auto& force : m_forces)
+        {
+        force->setSR(shear_rate);
+        }
+    m_SR = shear_rate;
+    }
+
+Scalar Integrator::getSR()
+    {
+    return m_SR;
     }
 
 /** Loops over all constraint forces in the Integrator and sums up the number of DOF removed
@@ -782,11 +796,13 @@ void Integrator::computeNetForceGPU(uint64_t timestep)
 void Integrator::update(uint64_t timestep)
     {
     Updater::update(timestep);
-
+    Scalar shear_rate = (*m_vinf)(timestep);
+    setSR(shear_rate);
     // ensure that the force computes know the current step size
     for (auto& force : m_forces)
         {
         force->setDeltaT(m_deltaT);
+        force->setSR(shear_rate);
         }
 
     for (auto& constraint_force : m_constraint_forces)
@@ -807,10 +823,12 @@ void Integrator::update(uint64_t timestep)
 void Integrator::prepRun(uint64_t timestep)
     {
     // ensure that all forces have updated delta t values at the start of step 0
-
+    Scalar shear_rate = (*m_vinf)(timestep);
+    setSR(shear_rate);
     for (auto& force : m_forces)
         {
         force->setDeltaT(m_deltaT);
+        force->setSR(shear_rate);
         }
 
     for (auto& constraint_force : m_constraint_forces)
@@ -878,7 +896,7 @@ void export_Integrator(pybind11::module& m)
     pybind11::bind_vector<std::vector<std::shared_ptr<ForceCompute>>>(m, "ForceComputeList");
     pybind11::bind_vector<std::vector<std::shared_ptr<ForceConstraint>>>(m, "ForceConstraintList");
     pybind11::class_<Integrator, Updater, std::shared_ptr<Integrator>>(m, "Integrator")
-        .def(pybind11::init<std::shared_ptr<SystemDefinition>, Scalar>())
+        .def(pybind11::init<std::shared_ptr<SystemDefinition>, Scalar, std::shared_ptr<Variant>>())
         .def("updateGroupDOF", &Integrator::updateGroupDOF)
         .def_property("dt", &Integrator::getDeltaT, &Integrator::setDeltaT)
         .def_property_readonly("forces", &Integrator::getForces)

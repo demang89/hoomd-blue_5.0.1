@@ -31,7 +31,7 @@ class PYBIND11_EXPORT FIREEnergyMinimizer : public IntegratorTwoStep
     {
     public:
     //! Constructs the minimizer and associates it with the system
-    FIREEnergyMinimizer(std::shared_ptr<SystemDefinition>, Scalar);
+    FIREEnergyMinimizer(std::shared_ptr<SystemDefinition>, Scalar, std::shared_ptr<Variant>);
     virtual ~FIREEnergyMinimizer();
 
     //! Reset the minimization

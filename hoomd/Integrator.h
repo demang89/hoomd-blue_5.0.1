@@ -15,6 +15,7 @@
 #include <pybind11/pybind11.h>
 #include <string>
 #include <vector>
+#include "Variant.h"
 
 #ifdef ENABLE_HIP
 #include <hip/hip_runtime.h>
@@ -61,7 +62,7 @@ class PYBIND11_EXPORT Integrator : public Updater
     {
     public:
     /// Constructor
-    Integrator(std::shared_ptr<SystemDefinition> sysdef, Scalar deltaT);
+    Integrator(std::shared_ptr<SystemDefinition> sysdef, Scalar deltaT, std::shared_ptr<Variant> vinf);
 
     /// Destructor
     virtual ~Integrator();
@@ -98,7 +99,8 @@ class PYBIND11_EXPORT Integrator : public Updater
 
     /// Return the timestep
     Scalar getDeltaT();
-
+    void setSR(Scalar);
+    Scalar getSR();
     /// Update the number of degrees of freedom for a group
     /** @param group Group to set the degrees of freedom for.
      */
@@ -179,6 +181,9 @@ class PYBIND11_EXPORT Integrator : public Updater
     protected:
     /// The step size
     Scalar m_deltaT;
+
+    std::shared_ptr<Variant> m_vinf;
+    Scalar m_SR;
 
     /// List of all the force computes
     std::vector<std::shared_ptr<ForceCompute>> m_forces;

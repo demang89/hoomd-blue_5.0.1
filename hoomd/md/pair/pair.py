@@ -1555,6 +1555,7 @@ class DLVO(Pair):
                 A=float,
                 a1=float,
                 a2=float,
+                kn=float,
                 len_keys=2,
             ),
         )

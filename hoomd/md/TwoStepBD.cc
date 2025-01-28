@@ -84,6 +84,8 @@ void TwoStepBD::integrateStepOne(uint64_t timestep)
 
     uint16_t seed = m_sysdef->getSeed();
 
+    const BoxDim& box_global = m_pdata->getGlobalBox();
+    Scalar shear_rate = this->m_SR;
     // perform the first half step
     // r(t+deltaT) = r(t) + (Fc(t) + Fr)*deltaT/gamma
     // v(t+deltaT) = random distribution consistent with T
@@ -117,7 +119,7 @@ void TwoStepBD::integrateStepOne(uint64_t timestep)
 
         if (D < 3)
             Fr_z = Scalar(0.0);
-
+        Scalar vinf = shear_rate * h_pos.data[j].y / box_global.getL().y;
         // update position
         h_pos.data[j].x += (h_net_force.data[j].x + Fr_x) * m_deltaT / gamma;
         h_pos.data[j].y += (h_net_force.data[j].y + Fr_y) * m_deltaT / gamma;
@@ -125,11 +127,14 @@ void TwoStepBD::integrateStepOne(uint64_t timestep)
 
         // particles may have been moved slightly outside the box by the above steps, wrap them back
         // into place
+        int img0 = h_image.data[j].y;
         box.wrap(h_pos.data[j], h_image.data[j]);
+        img0 -= h_image.data[j].y;
+        vinf += (img0 * shear_rate);
 
         if (m_noiseless_t)
             {
-            h_vel.data[j].x = h_net_force.data[j].x / gamma;
+            h_vel.data[j].x = h_net_force.data[j].x / gamma + vinf;
             h_vel.data[j].y = h_net_force.data[j].y / gamma;
             if (D > 2)
                 h_vel.data[j].z = h_net_force.data[j].z / gamma;

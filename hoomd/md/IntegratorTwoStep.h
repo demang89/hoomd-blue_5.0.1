@@ -39,7 +39,7 @@ class PYBIND11_EXPORT IntegratorTwoStep : public Integrator
     {
     public:
     /// Constructor
-    IntegratorTwoStep(std::shared_ptr<SystemDefinition> sysdef, Scalar deltaT);
+    IntegratorTwoStep(std::shared_ptr<SystemDefinition> sysdef, Scalar deltaT, std::shared_ptr<Variant> vinf);
 
     /// Destructor
     virtual ~IntegratorTwoStep();

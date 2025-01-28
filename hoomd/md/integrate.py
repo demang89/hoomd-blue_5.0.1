@@ -12,7 +12,7 @@ from hoomd.data import syncedlist
 from hoomd.md.methods import Method
 from hoomd.md.force import Force
 from hoomd.md.constrain import Constraint, Rigid
-
+from hoomd.variant import Variant, Constant
 
 def _set_synced_list(old_list, new_list):
     old_list.clear()
@@ -326,6 +326,7 @@ class Integrator(_DynamicIntegrator):
     def __init__(
         self,
         dt,
+        vinf,
         integrate_rotational_dof=False,
         forces=None,
         constraints=None,
@@ -338,6 +339,7 @@ class Integrator(_DynamicIntegrator):
         self._param_dict.update(
             ParameterDict(
                 dt=float(dt),
+                vinf=Variant,
                 integrate_rotational_dof=bool(integrate_rotational_dof),
                 half_step_hook=OnlyTypes(hoomd.md.HalfStepHook, allow_none=True),
             )
@@ -348,7 +350,7 @@ class Integrator(_DynamicIntegrator):
     def _attach_hook(self):
         # initialize the reflected c++ class
         self._cpp_obj = _md.IntegratorTwoStep(
-            self._simulation.state._cpp_sys_def, self.dt
+            self._simulation.state._cpp_sys_def, self.dt, self.vinf
         )
         # Call attach from DynamicIntegrator which attaches forces,
         # constraint_forces, and methods, and calls super()._attach() itself.

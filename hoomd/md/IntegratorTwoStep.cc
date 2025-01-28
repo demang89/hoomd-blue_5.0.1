@@ -16,8 +16,8 @@ namespace hoomd
     {
 namespace md
     {
-IntegratorTwoStep::IntegratorTwoStep(std::shared_ptr<SystemDefinition> sysdef, Scalar deltaT)
-    : Integrator(sysdef, deltaT), m_prepared(false)
+IntegratorTwoStep::IntegratorTwoStep(std::shared_ptr<SystemDefinition> sysdef, Scalar deltaT, std::shared_ptr<Variant> vinf)
+    : Integrator(sysdef, deltaT, vinf), m_prepared(false)
     {
     m_exec_conf->msg->notice(5) << "Constructing IntegratorTwoStep" << endl;
 
@@ -51,7 +51,7 @@ IntegratorTwoStep::~IntegratorTwoStep()
 void IntegratorTwoStep::update(uint64_t timestep)
     {
     Integrator::update(timestep);
-
+    Scalar shear_rate = (*m_vinf)(timestep);
     // ensure that prepRun() has been called
     assert(m_prepared);
 
@@ -62,12 +62,14 @@ void IntegratorTwoStep::update(uint64_t timestep)
         // files. Work around this by calling setDeltaT every timestep.
         method->setAnisotropic(m_integrate_rotational_dof);
         method->setDeltaT(m_deltaT);
+        method->setSR(shear_rate);
         method->integrateStepOne(timestep);
         }
 
 #ifdef ENABLE_MPI
     if (m_sysdef->isDomainDecomposed())
         {
+        m_comm->setSR(shear_rate);
         // Update the rigid body consituent particles before communicating so that any such
         // particles that move from one domain to another are migrated.
         updateRigidBodies(timestep + 1);
@@ -420,7 +422,7 @@ void export_IntegratorTwoStep(pybind11::module& m)
     pybind11::class_<IntegratorTwoStep, Integrator, std::shared_ptr<IntegratorTwoStep>>(
         m,
         "IntegratorTwoStep")
-        .def(pybind11::init<std::shared_ptr<SystemDefinition>, Scalar>())
+        .def(pybind11::init<std::shared_ptr<SystemDefinition>, Scalar, std::shared_ptr<Variant>>())
         .def_property_readonly("methods", &IntegratorTwoStep::getIntegrationMethods)
         .def_property("rigid", &IntegratorTwoStep::getRigid, &IntegratorTwoStep::setRigid)
         .def_property("integrate_rotational_dof",

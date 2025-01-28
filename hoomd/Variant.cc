@@ -178,6 +178,28 @@ void export_Variant(pybind11::module& m)
                                     params[4].cast<uint64_t>());
             }));
 
+    pybind11::class_<VariantCosinusoid, Variant, std::shared_ptr<VariantCosinusoid>>(m, "VariantCosinusoid")
+        .def(pybind11::init<Scalar, uint64_t, Scalar>(),
+             pybind11::arg("value"),
+             pybind11::arg("t_start"),
+             pybind11::arg("omega"))
+        .def_property("value", &VariantCosinusoid::getValue, &VariantCosinusoid::setValue)
+        .def_property("t_start", &VariantCosinusoid::getTStart, &VariantCosinusoid::setTStart)
+        .def_property("omega", &VariantCosinusoid::getOmega, &VariantCosinusoid::setOmega)
+        .def(pybind11::pickle(
+            [](const VariantCosinusoid& variant)
+            {
+                return pybind11::make_tuple(variant.getValue(),
+                                            variant.getTStart(),
+                                            variant.getOmega());
+            },
+            [](pybind11::tuple params)
+            {
+                return VariantCosinusoid(params[0].cast<Scalar>(),
+                                   params[1].cast<uint64_t>(),
+                                   params[2].cast<Scalar>());
+            }));
+
     m.def("_test_variant_call", &testVariantCall);
     m.def("_test_variant_min", &testVariantMin);
     m.def("_test_variant_max", &testVariantMax);

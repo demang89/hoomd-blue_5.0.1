@@ -1719,8 +1719,12 @@ void Communicator::migrateParticles()
             detail::pdata_element& p = m_recvbuf[idx];
             Scalar4& postype = p.pos;
             int3& image = p.image;
-
+        //Deepak's modification
+            int img0 = image.y;
             shifted_box.wrap(postype, image);
+            img0 -= image.y;
+            p.vel.x += (img0 * m_SR);
+            //shifted_box.wrap(postype, image);
             }
 
         // remove particles that were sent and fill particle data with received particles
@@ -2327,13 +2331,22 @@ void Communicator::exchangeGhosts()
 
             const BoxDim shifted_box = getShiftedBox();
 
+            ArrayHandle<Scalar4> h_vel(m_pdata->getVelocities(),
+                                       access_location::host,
+                                       access_mode::readwrite);
+
             for (unsigned int idx = start_idx; idx < start_idx + m_num_recv_ghosts[dir]; idx++)
                 {
                 Scalar4& pos = h_pos.data[idx];
 
                 // wrap particles received across a global boundary
                 int3& img = h_image.data[idx];
+                //Deepak's modifications
+                int img0 = img.y;
                 shifted_box.wrap(pos, img);
+                img0 -= img.y;
+                h_vel.data[idx].x += (img0 * m_SR);
+                //shifted_box.wrap(pos, img);
                 }
             }
 
@@ -2837,7 +2850,9 @@ void Communicator::beginUpdateGhosts(uint64_t timestep)
             ArrayHandle<Scalar4> h_pos(m_pdata->getPositions(),
                                        access_location::host,
                                        access_mode::readwrite);
-
+            ArrayHandle<Scalar4> h_vel(m_pdata->getVelocities(),
+                                       access_location::host,
+                                       access_mode::readwrite);
             const BoxDim shifted_box = getShiftedBox();
             for (unsigned int idx = start_idx; idx < start_idx + m_num_recv_ghosts[dir]; idx++)
                 {
@@ -2845,7 +2860,11 @@ void Communicator::beginUpdateGhosts(uint64_t timestep)
 
                 // wrap particles received across a global boundary
                 int3 img = make_int3(0, 0, 0);
+                //Deepak's modifications
                 shifted_box.wrap(pos, img);
+                int img0 = img.y;
+                h_vel.data[idx].x -= (img0 * m_SR);
+                //shifted_box.wrap(pos, img);
                 }
             }
 

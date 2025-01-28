@@ -287,5 +287,14 @@ class Power(_hoomd.VariantPower, Variant):
 
     __eq__ = Variant._private_eq
 
+##########################################################
+class Cosinusoid(_hoomd.VariantCosinusoid, Variant):
+    _eq_attrs = ("value", "t_start", "omega")
+
+    def __init__(self, value, t_start, omega):
+        Variant.__init__(self)
+        _hoomd.VariantCosinusoid.__init__(self, value, t_start, omega)
+
+    __eq__ = Variant._private_eq
 
 variant_like = typing.Union[Variant, float]

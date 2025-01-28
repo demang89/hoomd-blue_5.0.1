@@ -24,8 +24,8 @@ namespace hoomd
  * \param sysdef System definition
  * \param deltaT Fundamental integration timestep
  */
-mpcd::Integrator::Integrator(std::shared_ptr<SystemDefinition> sysdef, Scalar deltaT)
-    : md::IntegratorTwoStep(sysdef, deltaT)
+mpcd::Integrator::Integrator(std::shared_ptr<SystemDefinition> sysdef, Scalar deltaT, std::shared_ptr<Variant> vinf)
+    : md::IntegratorTwoStep(sysdef, deltaT, vinf)
     {
     m_exec_conf->msg->notice(5) << "Constructing MPCD Integrator" << std::endl;
 
@@ -240,7 +240,7 @@ void export_Integrator(pybind11::module& m)
     pybind11::class_<mpcd::Integrator,
                      hoomd::md::IntegratorTwoStep,
                      std::shared_ptr<mpcd::Integrator>>(m, "Integrator")
-        .def(pybind11::init<std::shared_ptr<SystemDefinition>, Scalar>())
+        .def(pybind11::init<std::shared_ptr<SystemDefinition>, Scalar, std::shared_ptr<Variant>>())
         .def_property("cell_list", &mpcd::Integrator::getCellList, &mpcd::Integrator::setCellList)
         .def_property("collision_method",
                       &mpcd::Integrator::getCollisionMethod,

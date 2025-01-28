@@ -121,7 +121,7 @@ class PYBIND11_EXPORT IntegrationMethodTwoStep : public Autotuned
 
     //! Change the timestep
     virtual void setDeltaT(Scalar deltaT);
-
+    virtual void setSR(Scalar shear_rate);
     //! Access the group
     std::shared_ptr<ParticleGroup> getGroup()
         {
@@ -180,6 +180,7 @@ class PYBIND11_EXPORT IntegrationMethodTwoStep : public Autotuned
     bool m_aniso;    //!< True if anisotropic integration is requested
 
     Scalar m_deltaT; //!< The time step
+    Scalar m_SR;
     };
 
     } // end namespace md
