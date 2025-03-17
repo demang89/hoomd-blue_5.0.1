@@ -158,6 +158,7 @@ from .pair import (
     Table,
     TWF,
     LJGauss,
+    DLVOStokesDrag,
 )
 
 __all__ = [
@@ -188,4 +189,5 @@ __all__ = [
     "Table",
     "Yukawa",
     "aniso",
+    "DLVOStokesDrag",
 ]

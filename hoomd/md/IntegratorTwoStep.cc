@@ -228,6 +228,7 @@ const bool IntegratorTwoStep::getIntegrateRotationalDOF()
 void IntegratorTwoStep::prepRun(uint64_t timestep)
     {
     Integrator::prepRun(timestep);
+    Scalar shear_rate = (*m_vinf)(timestep);
     if (m_integrate_rotational_dof && !areForcesAnisotropic())
         {
         m_exec_conf->msg->warning() << "Requested integration of orientations, but no forces"
@@ -242,12 +243,16 @@ void IntegratorTwoStep::prepRun(uint64_t timestep)
         }
 
     for (auto& method : m_methods)
+        {
         method->setAnisotropic(m_integrate_rotational_dof);
+        method->setSR(shear_rate);
+        }
 
 #ifdef ENABLE_MPI
     if (m_sysdef->isDomainDecomposed())
         {
         // force particle migration and ghost exchange
+        m_comm->setSR(shear_rate);
         m_comm->forceMigrate();
 
         // perform communication
@@ -301,9 +306,11 @@ PDataFlags IntegratorTwoStep::getRequestedPDataFlags()
 //! Updates the rigid body constituent particles
 void IntegratorTwoStep::updateRigidBodies(uint64_t timestep)
     {
+    Scalar shear_rate = (*m_vinf)(timestep);
     // update the composite particle positions of any rigid bodies
     if (m_rigid_bodies)
         {
+        m_rigid_bodies->setSR(shear_rate);
         m_rigid_bodies->updateCompositeParticles(timestep);
         }
     }

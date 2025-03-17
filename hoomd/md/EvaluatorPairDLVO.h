@@ -130,8 +130,12 @@ class EvaluatorPairDLVO
         // compute the force divided by r in force_divr
         if (r < rcut && kappa != 0)
             {
-            Scalar rmin = Scalar(1.01) * radsum;
-            if (r < radsum) force_divr = (radsum - r) * kn;
+            Scalar rmin = radsum + Scalar(0.01);
+            if (r < radsum) 
+                {
+                force_divr += kn * (radsum - r);
+                pair_eng += Scalar(0.5) * kn * (radsum - r) * (radsum - r);
+                }
             if (r < rmin) r = rmin;
             Scalar rmds = r - radsum;
             Scalar rmdsqs = r * r - radsum * radsum;
@@ -150,7 +154,7 @@ class EvaluatorPairDLVO
             Scalar engt1 = radprod * rmdsqsinv * A / Scalar(3.0);
             Scalar engt2 = radprod * rmdsqminv * A / Scalar(3.0);
             Scalar engt3 = slow::log(rmdsqs * rmdsqminv) * A / Scalar(6.0);
-            pair_eng = r * forcerep_divr / kappa - engt1 - engt2 - engt3;
+            pair_eng += r * forcerep_divr / kappa - engt1 - engt2 - engt3;
             if (energy_shift)
                 {
                 Scalar rcutt = rcut;

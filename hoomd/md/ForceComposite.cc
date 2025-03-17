@@ -878,6 +878,17 @@ void ForceComposite::updateCompositeParticles(uint64_t timestep)
     ArrayHandle<unsigned int> h_rtag(m_pdata->getRTags(), access_location::host, access_mode::read);
     ArrayHandle<unsigned int> h_tag(m_pdata->getTags(), access_location::host, access_mode::read);
 
+    // access particle rotational data arrays
+    ArrayHandle<Scalar4> h_veltype(m_pdata->getVelocities(),
+                                   access_location::host,
+                                   access_mode::readwrite);
+    ArrayHandle<Scalar4> h_angmom(m_pdata->getAngularMomentumArray(),
+                                  access_location::host,
+                                  access_mode::read);
+    ArrayHandle<Scalar3> h_inertia(m_pdata->getMomentsOfInertiaArray(),
+                                   access_location::host,
+                                   access_mode::read);
+
     // access body positions and orientations
     ArrayHandle<Scalar3> h_body_pos(m_body_pos, access_location::host, access_mode::read);
     ArrayHandle<Scalar4> h_body_orientation(m_body_orientation,
@@ -986,6 +997,25 @@ void ForceComposite::updateCompositeParticles(uint64_t timestep)
                            __int_as_scalar(h_body_types.data[m_body_idx(type, idx_in_body)]));
         h_orientation.data[particle_index] = quat_to_scalar4(updated_orientation);
         h_image.data[particle_index] = img + imgi;
+
+        //Deepak's modification
+        //update constituent's velocity for stoke's drag force
+        vec3<Scalar> vel(h_veltype.data[central_idx]);
+        quat<Scalar> angmom(h_angmom.data[central_idx]);
+        vec3<Scalar> I(h_inertia.data[central_idx]);
+        vec3<Scalar> omega = (Scalar(1. / 2.) * conj(orientation) * angmom).v / I;
+        if(I.x==0) omega.x = 0;
+        if(I.y==0) omega.y = 0;
+        if(I.z==0) omega.z = 0;
+        omega = rotate(orientation,omega);
+        vec3<Scalar> updated_vel(vel);
+        updated_vel += cross(omega, dr_space);
+        updated_vel.x -= imgi.y*this->m_SR;
+        h_veltype.data[particle_index]
+            = make_scalar4(updated_vel.x,
+                           updated_vel.y,
+                           updated_vel.z,
+                           h_veltype.data[particle_index].w);
         }
     }
 

@@ -25,6 +25,7 @@ from .methods import (
     ConstantPressure,
     DisplacementCapped,
     OverdampedViscous,
+    Sllod,
 )
 from . import thermostats
 
@@ -39,4 +40,5 @@ __all__ = [
     "Thermostatted",
     "rattle",
     "thermostats",
+    "Sllod",
 ]

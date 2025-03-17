@@ -1,7 +1,7 @@
 // Copyright (c) 2009-2024 The Regents of the University of Michigan.
 // Part of HOOMD-blue, released under the BSD 3-Clause License.
 
-#include "TwoStepLangevin.h"
+#include "TwoStepSllod.h"
 #include "hoomd/RNGIdentifiers.h"
 #include "hoomd/RandomNumbers.h"
 #include "hoomd/VectorMath.h"
@@ -17,25 +17,25 @@ namespace hoomd
     {
 namespace md
     {
-TwoStepLangevin::TwoStepLangevin(std::shared_ptr<SystemDefinition> sysdef,
+TwoStepSllod::TwoStepSllod(std::shared_ptr<SystemDefinition> sysdef,
                                  std::shared_ptr<ParticleGroup> group,
                                  std::shared_ptr<Variant> T)
     : TwoStepLangevinBase(sysdef, group, T), m_reservoir_energy(0), m_extra_energy_overdeltaT(0),
       m_tally(false), m_noiseless_t(false), m_noiseless_r(false)
     {
-    m_exec_conf->msg->notice(5) << "Constructing TwoStepLangevin" << endl;
+    m_exec_conf->msg->notice(5) << "Constructing TwoStepSllod" << endl;
     }
 
-TwoStepLangevin::~TwoStepLangevin()
+TwoStepSllod::~TwoStepSllod()
     {
-    m_exec_conf->msg->notice(5) << "Destroying TwoStepLangevin" << endl;
+    m_exec_conf->msg->notice(5) << "Destroying TwoStepSllod" << endl;
     }
 
 /*! \param timestep Current time step
     \post Particle positions are moved forward to timestep+1 and velocities to timestep+1/2 per the
    velocity verlet method.
 */
-void TwoStepLangevin::integrateStepOne(uint64_t timestep)
+void TwoStepSllod::integrateStepOne(uint64_t timestep)
     {
     unsigned int group_size = m_group->getNumMembers();
 
@@ -53,7 +53,10 @@ void TwoStepLangevin::integrateStepOne(uint64_t timestep)
     ArrayHandle<Scalar3> h_gamma_r(m_gamma_r, access_location::host, access_mode::read);
 
     const BoxDim& box = m_pdata->getBox();
-    Scalar vinf = this->m_SR;
+    
+    const BoxDim& box_global = m_pdata->getGlobalBox();
+    Scalar Ly = box_global.getL().y;
+    Scalar strain = this->m_SR / Ly * m_deltaT;
     // perform the first half step of velocity verlet
     // r(t+deltaT) = r(t) + v(t)*deltaT + (1/2)a(t)*deltaT^2
     // v(t+deltaT/2) = v(t) + (1/2)a*deltaT
@@ -61,27 +64,16 @@ void TwoStepLangevin::integrateStepOne(uint64_t timestep)
         {
         unsigned int j = m_group->getMemberIndex(group_idx);
 
-        Scalar dx = h_vel.data[j].x * m_deltaT
-                    + Scalar(1.0 / 2.0) * h_accel.data[j].x * m_deltaT * m_deltaT;
-        Scalar dy = h_vel.data[j].y * m_deltaT
-                    + Scalar(1.0 / 2.0) * h_accel.data[j].y * m_deltaT * m_deltaT;
-        Scalar dz = h_vel.data[j].z * m_deltaT
-                    + Scalar(1.0 / 2.0) * h_accel.data[j].z * m_deltaT * m_deltaT;
+        Scalar dx = h_vel.data[j].x * m_deltaT + h_pos.data[j].y * strain;
+        Scalar dy = h_vel.data[j].y * m_deltaT;
+        Scalar dz = h_vel.data[j].z * m_deltaT;
 
         h_pos.data[j].x += dx;
         h_pos.data[j].y += dy;
         h_pos.data[j].z += dz;
         // particles may have been moved slightly outside the box by the above steps, wrap them back
         // into place
-        //Deepak's modification
-        // Apply LEBC to particle's velocity
-        int img0 = h_image.data[j].y;
         box.wrap(h_pos.data[j], h_image.data[j]);
-        img0 -= h_image.data[j].y;
-
-        h_vel.data[j].x += Scalar(1.0 / 2.0) * h_accel.data[j].x * m_deltaT + (img0 * vinf);
-        h_vel.data[j].y += Scalar(1.0 / 2.0) * h_accel.data[j].y * m_deltaT;
-        h_vel.data[j].z += Scalar(1.0 / 2.0) * h_accel.data[j].z * m_deltaT;
         }
 
     if (m_aniso)
@@ -207,7 +199,7 @@ void TwoStepLangevin::integrateStepOne(uint64_t timestep)
 /*! \param timestep Current time step
     \post particle velocities are moved forward to timestep+1
 */
-void TwoStepLangevin::integrateStepTwo(uint64_t timestep)
+void TwoStepSllod::integrateStepTwo(uint64_t timestep)
     {
     unsigned int group_size = m_group->getNumMembers();
 
@@ -253,6 +245,41 @@ void TwoStepLangevin::integrateStepTwo(uint64_t timestep)
     Scalar Ly = box_global.getL().y;
     Scalar shear_rate = this->m_SR / Ly;
 
+    Scalar var1 = 0;
+    Scalar var2 = 0;
+    for (unsigned int group_idx = 0; group_idx < group_size; group_idx++)
+        {
+        unsigned int j = m_group->getMemberIndex(group_idx);
+        Scalar minv = Scalar(1.0) / h_vel.data[j].w;
+        h_accel.data[j].x = h_net_force.data[j].x * minv;
+        h_accel.data[j].y = h_net_force.data[j].y * minv;
+        h_accel.data[j].z = h_net_force.data[j].z * minv;
+        var1 += (h_accel.data[j].x*h_vel.data[j].x + h_accel.data[j].y*h_vel.data[j].y + 
+                 h_accel.data[j].z*h_vel.data[j].z - h_vel.data[j].x * h_vel.data[j].y * shear_rate);
+        var2 += (h_vel.data[j].x * h_vel.data[j].x + h_vel.data[j].y * h_vel.data[j].y + 
+                h_vel.data[j].z * h_vel.data[j].z);
+        }
+
+#ifdef ENABLE_MPI
+    if (m_sysdef->isDomainDecomposed())
+        {
+        MPI_Allreduce(MPI_IN_PLACE,
+                      &var1,
+                      1,
+                      MPI_HOOMD_SCALAR,
+                      MPI_SUM,
+                      m_exec_conf->getMPICommunicator());
+        MPI_Allreduce(MPI_IN_PLACE,
+                      &var2,
+                      1,
+                      MPI_HOOMD_SCALAR,
+                      MPI_SUM,
+                      m_exec_conf->getMPICommunicator());
+        }
+#endif
+
+    Scalar alpha = var1 / var2;
+
     for (unsigned int group_idx = 0; group_idx < group_size; group_idx++)
         {
         unsigned int j = m_group->getMemberIndex(group_idx);
@@ -274,12 +301,10 @@ void TwoStepLangevin::integrateStepTwo(uint64_t timestep)
         gamma = h_gamma.data[type];
 
         // compute the bd force
-        //Deepak's modification
-        // Modify the drag considering background fluid velocity
         Scalar coeff = fast::sqrt(Scalar(6.0) * gamma * currentTemp / m_deltaT);
         if (m_noiseless_t)
             coeff = Scalar(0.0);
-        Scalar bd_fx = rx * coeff - gamma * (h_vel.data[j].x - shear_rate * h_pos.data[j].y);
+        Scalar bd_fx = rx * coeff - gamma * h_vel.data[j].x;
         Scalar bd_fy = ry * coeff - gamma * h_vel.data[j].y;
         Scalar bd_fz = rz * coeff - gamma * h_vel.data[j].z;
 
@@ -293,9 +318,10 @@ void TwoStepLangevin::integrateStepTwo(uint64_t timestep)
         h_accel.data[j].z = (h_net_force.data[j].z + bd_fz) * minv;
 
         // then, update the velocity
-        h_vel.data[j].x += Scalar(1.0 / 2.0) * h_accel.data[j].x * m_deltaT;
-        h_vel.data[j].y += Scalar(1.0 / 2.0) * h_accel.data[j].y * m_deltaT;
-        h_vel.data[j].z += Scalar(1.0 / 2.0) * h_accel.data[j].z * m_deltaT;
+        h_vel.data[j].x += h_accel.data[j].x * m_deltaT - shear_rate * m_deltaT * h_vel.data[j].y - 
+                           alpha * h_vel.data[j].x * m_deltaT;
+        h_vel.data[j].y += h_accel.data[j].y * m_deltaT - alpha * h_vel.data[j].y * m_deltaT;
+        h_vel.data[j].z += h_accel.data[j].z * m_deltaT - alpha * h_vel.data[j].z * m_deltaT;
 
         // tally the energy transfer from the bd thermal reservoir to the particles
         if (m_tally)
@@ -316,11 +342,6 @@ void TwoStepLangevin::integrateStepTwo(uint64_t timestep)
             // s is the pure imaginary quaternion with im. part equal to true angular velocity
             vec3<Scalar> s;
             s = (Scalar(1. / 2.) * conj(q) * p).v;
-            //Deepak's modification
-            //Compute fluid's vorticity in body frame
-            //external shear in body frame
-            vec3<Scalar> SR = {0,0,-Scalar(0.5)*shear_rate};
-            SR = rotate(conj(q), SR);
 
             if (gamma_r.x > 0 || gamma_r.y > 0 || gamma_r.z > 0)
                 {
@@ -346,11 +367,9 @@ void TwoStepLangevin::integrateStepTwo(uint64_t timestep)
                 y_zero = (I.y == 0);
                 z_zero = (I.z == 0);
 
-                //Deepak's modification
-                //Modify rotational drag due to fluid's vorticity
-                bf_torque.x = rand_x - gamma_r.x * (s.x / I.x - SR.x);
-                bf_torque.y = rand_y - gamma_r.y * (s.y / I.y - SR.y);
-                bf_torque.z = rand_z - gamma_r.z * (s.z / I.z - SR.z);
+                bf_torque.x = rand_x - gamma_r.x * (s.x / I.x);
+                bf_torque.y = rand_y - gamma_r.y * (s.y / I.y);
+                bf_torque.z = rand_z - gamma_r.z * (s.z / I.z);
 
                 // ignore torque component along an axis for which the moment of inertia zero
                 if (x_zero)
@@ -381,6 +400,7 @@ void TwoStepLangevin::integrateStepTwo(uint64_t timestep)
         for (unsigned int group_idx = 0; group_idx < group_size; group_idx++)
             {
             unsigned int j = m_group->getMemberIndex(group_idx);
+
             quat<Scalar> q(h_orientation.data[j]);
             quat<Scalar> p(h_angmom.data[j]);
             vec3<Scalar> t(h_net_torque.data[j]);
@@ -388,6 +408,7 @@ void TwoStepLangevin::integrateStepTwo(uint64_t timestep)
 
             // rotate torque into principal frame
             t = rotate(conj(q), t);
+
             // check for zero moment of inertia
             bool x_zero, y_zero, z_zero;
             x_zero = (I.x == 0);
@@ -429,18 +450,18 @@ void TwoStepLangevin::integrateStepTwo(uint64_t timestep)
 
 namespace detail
     {
-void export_TwoStepLangevin(pybind11::module& m)
+void export_TwoStepSllod(pybind11::module& m)
     {
-    pybind11::class_<TwoStepLangevin, TwoStepLangevinBase, std::shared_ptr<TwoStepLangevin>>(
+    pybind11::class_<TwoStepSllod, TwoStepLangevinBase, std::shared_ptr<TwoStepSllod>>(
         m,
-        "TwoStepLangevin")
+        "TwoStepSllod")
         .def(pybind11::init<std::shared_ptr<SystemDefinition>,
                             std::shared_ptr<ParticleGroup>,
                             std::shared_ptr<Variant>>())
         .def_property("tally_reservoir_energy",
-                      &TwoStepLangevin::getTallyReservoirEnergy,
-                      &TwoStepLangevin::setTallyReservoirEnergy)
-        .def_property_readonly("reservoir_energy", &TwoStepLangevin::getReservoirEnergy);
+                      &TwoStepSllod::getTallyReservoirEnergy,
+                      &TwoStepSllod::setTallyReservoirEnergy)
+        .def_property_readonly("reservoir_energy", &TwoStepSllod::getReservoirEnergy);
     }
 
     } // end namespace detail

@@ -39,6 +39,7 @@ class PYBIND11_EXPORT BoxShearUpdater : public Updater
                      std::shared_ptr<Trigger> trigger,
                      std::shared_ptr<Variant> vinf,
                      Scalar deltaT,
+                     bool vscale,
                      bool flip,
                      std::shared_ptr<ParticleGroup> group);
 
@@ -72,6 +73,7 @@ class PYBIND11_EXPORT BoxShearUpdater : public Updater
     private:
     std::shared_ptr<Variant> m_vinf;     //!< Variant that interpolates between boxes
     Scalar m_deltaT;
+    bool m_vscale;
     bool m_flip;
     std::shared_ptr<ParticleGroup> m_group;
     };

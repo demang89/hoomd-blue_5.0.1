@@ -31,9 +31,10 @@ BoxShearUpdater::BoxShearUpdater(std::shared_ptr<SystemDefinition> sysdef,
                                    std::shared_ptr<Trigger> trigger,
                                    std::shared_ptr<Variant> vinf,
                                    Scalar deltaT,
+                                   bool vscale,
                                    bool flip,
                                    std::shared_ptr<ParticleGroup> group)
-    : Updater(sysdef, trigger), m_vinf(vinf), m_deltaT(deltaT), m_flip(flip), m_group(group)
+    : Updater(sysdef, trigger), m_vinf(vinf), m_deltaT(deltaT), m_vscale(vscale), m_flip(flip), m_group(group)
     {
     assert(m_pdata);
     assert(m_vinf);
@@ -57,14 +58,15 @@ BoxShearUpdater::~BoxShearUpdater()
 
 void BoxShearUpdater::update(uint64_t timestep)
     {
-    //std::cout << "from boxresize " << timestep << std::endl;
+    //std::cout << m_vscale << std::endl;
     Updater::update(timestep);
     m_exec_conf->msg->notice(10) << "Box shear update" << endl;
 
     BoxDim cur_box = m_pdata->getGlobalBox();
-    Scalar L_Y = cur_box.getL().y;
+    Scalar Ly = cur_box.getL().y;
 
-    Scalar cur_erate = (*m_vinf)(timestep)/L_Y;
+    Scalar cur_erate = (*m_vinf)(timestep)/Ly;
+
     Scalar3 new_L = cur_box.getL();
     Scalar xy = cur_box.getTiltFactorXY() + cur_erate * m_deltaT;
     Scalar xy1 = xy;
@@ -79,14 +81,24 @@ void BoxShearUpdater::update(uint64_t timestep)
     new_box.setTiltFactors(xy, xz, yz);
     if (new_box != cur_box)
         {
-        m_pdata->setGlobalBox(new_box);
-
         ArrayHandle<Scalar4> h_pos(m_pdata->getPositions(),
                                    access_location::host,
                                    access_mode::readwrite);
         ArrayHandle<Scalar4> h_vel(m_pdata->getVelocities(),
                                    access_location::host,
                                    access_mode::readwrite);
+
+        m_pdata->setGlobalBox(new_box);
+        /*for (unsigned int group_idx = 0; group_idx < m_group->getNumMembers(); group_idx++)
+            {
+            unsigned int j = m_group->getMemberIndex(group_idx);
+            Scalar3 fractional_pos = cur_box.makeFraction(make_scalar3(h_pos.data[j].x, h_pos.data[j].y, h_pos.data[j].z));
+            Scalar3 scaled_pos = new_box.makeCoordinates(fractional_pos);
+            h_pos.data[j].x = scaled_pos.x;
+            h_pos.data[j].y = scaled_pos.y;
+            h_pos.data[j].z = scaled_pos.z;
+            }*/
+
         ArrayHandle<int3> h_image(m_pdata->getImages(),
                                   access_location::host,
                                   access_mode::readwrite);
@@ -97,8 +109,15 @@ void BoxShearUpdater::update(uint64_t timestep)
             int img0 = h_image.data[i].y; 
             local_box.wrap(h_pos.data[i], h_image.data[i]);
             img0 -= h_image.data[i].y;
-            h_vel.data[i].x += (img0 * cur_erate * L_Y);
+            if(m_vscale) h_vel.data[i].x += (img0 * cur_erate * Ly);
             }
+
+        //Scale the origin
+        //Scalar3 old_origin = m_pdata->getOrigin();
+        //Scalar3 fractional_old_origin = cur_box.makeFraction(old_origin);
+        //Scalar3 new_origin = new_box.makeCoordinates(fractional_old_origin);
+        //m_pdata->translateOrigin(new_origin - old_origin);
+
 #ifdef ENABLE_MPI
     if (m_sysdef->isDomainDecomposed())
         {
@@ -119,7 +138,7 @@ void export_BoxShearUpdater(pybind11::module& m)
         "BoxShearUpdater")
         .def(pybind11::init<std::shared_ptr<SystemDefinition>,
                             std::shared_ptr<Trigger>,
-                            std::shared_ptr<Variant>,Scalar, bool,std::shared_ptr<ParticleGroup>>())
+                            std::shared_ptr<Variant>,Scalar, bool, bool,std::shared_ptr<ParticleGroup>>())
         .def_property("vinf", &BoxShearUpdater::getVinf, &BoxShearUpdater::setVinf)
         .def_property("deltaT", &BoxShearUpdater::getdeltaT, &BoxShearUpdater::setdeltaT)
         .def_property("flip", &BoxShearUpdater::getFlip, &BoxShearUpdater::setFlip);

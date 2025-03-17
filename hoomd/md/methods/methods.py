@@ -1290,3 +1290,78 @@ class OverdampedViscous(Method):
 
         # Attach param_dict and typeparam_dict
         super()._attach_hook()
+
+
+##########################################
+class Sllod(Method):
+    __doc__ = __doc__.replace("{inherited}", Method._doc_inherited)
+
+    def __init__(
+        self,
+        filter,
+        kT,
+        tally_reservoir_energy=False,
+        default_gamma=1.0,
+        default_gamma_r=(1.0, 1.0, 1.0),
+    ):
+        # store metadata
+        param_dict = ParameterDict(
+            filter=ParticleFilter,
+            kT=Variant,
+            tally_reservoir_energy=bool(tally_reservoir_energy),
+        )
+        param_dict.update(dict(kT=kT, filter=filter))
+        # set defaults
+        self._param_dict.update(param_dict)
+
+        gamma = TypeParameter(
+            "gamma",
+            type_kind="particle_types",
+            param_dict=TypeParameterDict(float, len_keys=1),
+        )
+        gamma.default = default_gamma
+
+        gamma_r = TypeParameter(
+            "gamma_r",
+            type_kind="particle_types",
+            param_dict=TypeParameterDict((float, float, float), len_keys=1),
+        )
+
+        gamma_r.default = default_gamma_r
+
+        self._extend_typeparam([gamma, gamma_r])
+
+    def _attach_hook(self):
+        """Langevin uses RNGs. Warn the user if they did not set the seed."""
+        self._simulation._warn_if_seed_unset()
+        sim = self._simulation
+        if isinstance(sim.device, hoomd.device.CPU):
+            cls = _md.TwoStepSllod
+        else:
+            cls = _md.TwoStepSllodGPU
+
+        self._cpp_obj = cls(
+            sim.state._cpp_sys_def, sim.state._get_group(self.filter), self.kT
+        )
+
+        # Attach param_dict and typeparam_dict
+        super()._attach_hook()
+
+    @hoomd.logging.log(requires_run=True)
+    def reservoir_energy(self):
+        """Energy absorbed by the reservoir :math:`[\\mathrm{energy}]`.
+
+        Set `tally_reservoir_energy` to `True` to track the reservoir energy.
+
+        .. rubric:: Example:
+
+        .. code-block:: python
+
+            langevin.tally_reservoir_energy = True
+            logger.add(obj=langevin, quantities=["reservoir_energy"])
+
+        Warning:
+            When continuing a simulation, the energy of the reservoir will be
+            reset to zero.
+        """
+        return self._cpp_obj.reservoir_energy

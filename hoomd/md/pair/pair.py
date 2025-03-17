@@ -182,7 +182,7 @@ class Pair(force.Force):
         self.nlist._attach(self._simulation)
         if isinstance(self._simulation.device, hoomd.device.CPU):
             cls = getattr(self._ext_module, self._cpp_class_name)
-            self.nlist._cpp_obj.setStorageMode(_md.NeighborList.storageMode.half)
+            self.nlist._cpp_obj.setStorageMode(_md.NeighborList.storageMode.full)
         else:
             cls = getattr(self._ext_module, self._cpp_class_name + "GPU")
             self.nlist._cpp_obj.setStorageMode(_md.NeighborList.storageMode.full)
@@ -2021,3 +2021,36 @@ class LJGauss(Pair):
             TypeParameterDict(epsilon=float, sigma=positive_real, r0=float, len_keys=2),
         )
         self._add_typeparam(params)
+
+##############################
+class DLVOStokesDrag(Pair):
+    _cpp_class_name = "PotentialPairDLVOStokesDrag"
+    __doc__ = __doc__.replace("{inherited}", Pair._doc_inherited)
+    _accepted_modes = ("none", "shift")
+
+    def __init__(self, nlist, kT, gamma_d, Rc, types, CorrReqd=False, default_r_cut=None, default_r_on=0.0, mode="none"):
+        if mode == "xplor":
+            raise ValueError("xplor is not a valid mode for the DLVO potential")
+
+        super().__init__(nlist, default_r_cut, default_r_on, mode)
+        params = TypeParameter(
+            "params",
+            "particle_types",
+            TypeParameterDict(
+                kappa=float,
+                Z=float,
+                A=float,
+                a1=float,
+                a2=float,
+                kn=float,
+                len_keys=2,
+            ),
+        )
+        self._add_typeparam(params)
+        param_dict = ParameterDict(kT=hoomd.variant.Variant,gamma=float,types=int,)
+        param_dict["kT"] = kT
+        param_dict["gamma_d"] = gamma_d
+        param_dict["Rc"] = Rc
+        param_dict["types"] = types
+        param_dict["CorrReqd"] = CorrReqd
+        self._param_dict.update(param_dict)

@@ -53,11 +53,13 @@ set(_md_sources module-md.cc
                    TwoStepLangevin.cc
                    TwoStepConstantVolume.cc
                    TwoStepConstantPressure.cc
+                   TwoStepSllod.cc
                    Thermostat.cc
                    TwoStepNVTAlchemy.cc
                    WallData.cc
-		               VolumeConservationMeshForceCompute.cc
+		   VolumeConservationMeshForceCompute.cc
                    ZeroMomentumUpdater.cc
+                   PotentialPairDLVOStokesDrag.cc
                    )
 
 set(_md_headers ActiveForceComputeGPU.h
@@ -183,6 +185,7 @@ set(_md_headers ActiveForceComputeGPU.h
                 PotentialPairGPU.h
                 PotentialPairGPU.cuh
                 PotentialPair.h
+                PotentialPairDLVOStokesDrag.h
                 PotentialSpecialPairGPU.h
                 PotentialSpecialPair.h
                 PotentialTersoffGPU.h
@@ -217,6 +220,7 @@ set(_md_headers ActiveForceComputeGPU.h
                 TwoStepConstantVolume.h
                 TwoStepConstantVolumeGPU.h
                 TwoStepConstantPressure.h
+                TwoStepSllod.h
                 AlchemostatTwoStep.h
                 TwoStepNVTAlchemy.h
 		            VolumeConservationMeshParameters.h

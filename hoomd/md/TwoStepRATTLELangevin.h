@@ -172,7 +172,7 @@ template<class Manifold> void TwoStepRATTLELangevin<Manifold>::integrateStepOne(
     ArrayHandle<Scalar3> h_gamma_r(m_gamma_r, access_location::host, access_mode::read);
 
     const BoxDim box = m_pdata->getBox();
-
+    Scalar vinf = this->m_SR;
     if (m_box_changed)
         {
         if (!m_manifold.fitsInsideBox(m_pdata->getGlobalBox()))
@@ -210,7 +210,10 @@ template<class Manifold> void TwoStepRATTLELangevin<Manifold>::integrateStepOne(
 
         // particles may have been moved slightly outside the box by the above steps, wrap them back
         // into place
+        int img0 = h_image.data[j].y;
         box.wrap(h_pos.data[j], h_image.data[j]);
+        img0 -= h_image.data[j].y;
+        h_vel.data[j].x += (img0 * vinf);
         }
 
     if (m_aniso)
@@ -375,6 +378,10 @@ template<class Manifold> void TwoStepRATTLELangevin<Manifold>::integrateStepTwo(
 
     uint16_t seed = m_sysdef->getSeed();
 
+    const BoxDim& box_global = m_pdata->getGlobalBox();
+    Scalar Ly = box_global.getL().y;
+    Scalar shear_rate = this->m_SR / Ly;
+
     // a(t+deltaT) gets modified with the bd forces
     // v(t+deltaT) = v(t+deltaT/2) + 1/2 * a(t+deltaT)*deltaT
     // iterative: v(t+deltaT) = v(t+deltaT/2) - J^(-1)*residual
@@ -430,7 +437,7 @@ template<class Manifold> void TwoStepRATTLELangevin<Manifold>::integrateStepTwo(
             coeff = 0;
             }
 
-        Scalar bd_fx = rx * coeff - gamma * h_vel.data[j].x;
+        Scalar bd_fx = rx * coeff - gamma * (h_vel.data[j].x - shear_rate * h_pos.data[j].y);
         Scalar bd_fy = ry * coeff - gamma * h_vel.data[j].y;
         Scalar bd_fz = rz * coeff - gamma * h_vel.data[j].z;
 
@@ -513,6 +520,10 @@ template<class Manifold> void TwoStepRATTLELangevin<Manifold>::integrateStepTwo(
             vec3<Scalar> s;
             s = (Scalar(1. / 2.) * conj(q) * p).v;
 
+            //external shear in body frame
+            vec3<Scalar> SR = {0,0,Scalar(0.5)*shear_rate};
+            SR = rotate(conj(q), SR);
+
             if (gamma_r.x > 0 || gamma_r.y > 0 || gamma_r.z > 0)
                 {
                 // first calculate in the body frame random and damping torque imposed by the
@@ -537,9 +548,9 @@ template<class Manifold> void TwoStepRATTLELangevin<Manifold>::integrateStepTwo(
                 y_zero = (I.y == 0);
                 z_zero = (I.z == 0);
 
-                bf_torque.x = rand_x - gamma_r.x * (s.x / I.x);
-                bf_torque.y = rand_y - gamma_r.y * (s.y / I.y);
-                bf_torque.z = rand_z - gamma_r.z * (s.z / I.z);
+                bf_torque.x = rand_x - gamma_r.x * (s.x / I.x - SR.x);
+                bf_torque.y = rand_y - gamma_r.y * (s.y / I.y - SR.y);
+                bf_torque.z = rand_z - gamma_r.z * (s.z / I.z - SR.z);
 
                 // ignore torque component along an axis for which the moment of inertia zero
                 if (x_zero)

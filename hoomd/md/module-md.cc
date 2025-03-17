@@ -66,6 +66,7 @@ void export_PotentialPairTWF(pybind11::module& m);
 void export_PotentialPairLJGauss(pybind11::module& m);
 void export_PotentialPairForceShiftedLJ(pybind11::module& m);
 void export_PotentialPairTable(pybind11::module& m);
+void export_PotentialPairDLVOStokesDrag(pybind11::module& m);
 
 void export_AnisoPotentialPairALJ2D(pybind11::module& m);
 void export_AnisoPotentialPairALJ3D(pybind11::module& m);
@@ -135,6 +136,7 @@ void export_FIREEnergyMinimizer(pybind11::module& m);
 void export_MuellerPlatheFlow(pybind11::module& m);
 void export_AlchemostatTwoStep(pybind11::module& m);
 void export_HalfStepHook(pybind11::module& m);
+void export_TwoStepSllod(pybind11::module& m);
 
 void export_TwoStepRATTLEBDCylinder(pybind11::module& m);
 void export_TwoStepRATTLEBDDiamond(pybind11::module& m);
@@ -364,6 +366,7 @@ PYBIND11_MODULE(_md, m)
     export_PotentialPairLJGauss(m);
     export_PotentialPairForceShiftedLJ(m);
     export_PotentialPairTable(m);
+    export_PotentialPairDLVOStokesDrag(m);
 
     export_AlchemicalMDParticles(m);
 
@@ -554,7 +557,7 @@ PYBIND11_MODULE(_md, m)
     export_AlchemostatTwoStep(m);
     export_TwoStepNVTAlchemy(m);
     export_HalfStepHook(m);
-
+    export_TwoStepSllod(m);
     // RATTLE
     export_TwoStepRATTLEBDCylinder(m);
     export_TwoStepRATTLEBDDiamond(m);

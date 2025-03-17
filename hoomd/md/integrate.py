@@ -336,14 +336,22 @@ class Integrator(_DynamicIntegrator):
     ):
         super().__init__(forces, constraints, methods, rigid)
 
-        self._param_dict.update(
-            ParameterDict(
+        param_dict = ParameterDict(
                 dt=float(dt),
-                vinf=Variant,
+                vinf = Variant,
                 integrate_rotational_dof=bool(integrate_rotational_dof),
-                half_step_hook=OnlyTypes(hoomd.md.HalfStepHook, allow_none=True),
-            )
-        )
+                half_step_hook=OnlyTypes(hoomd.md.HalfStepHook, allow_none=True))
+        param_dict.update(dict(dt=dt, vinf=vinf))
+        self._param_dict.update(param_dict)
+
+        #self._param_dict.update(
+        #    ParameterDict(
+        #        dt=float(dt),
+        #        vinf=Variant(vinf),
+        #        integrate_rotational_dof=bool(integrate_rotational_dof),
+        #        half_step_hook=OnlyTypes(hoomd.md.HalfStepHook, allow_none=True),
+        #    )
+        #)
 
         self.half_step_hook = half_step_hook
 
