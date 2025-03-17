@@ -322,15 +322,18 @@ void PotentialPairDLVOStokesDrag::computeForces(uint64_t timestep)
             Scalar rcutinv = fast::rsqrt(rcutsq);
             Scalar rcut = Scalar(1.0) / rcutinv;
 
-            if(r >= (m_Rc+param.a2))phi += Scalar(0.0);
-            else if(r<(m_Rc-param.a2)) phi += Scalar(4.0) * pow(param.a2,3);
-            else
+            if(m_CorrReqd)
                 {
-                Scalar h1 = (r*r+m_Rc*m_Rc-param.a2*param.a2)/(Scalar(2.0)*r);
-                Scalar h2 = r-h1;
-                Scalar vcap1 = pow((m_Rc-h1),2) * (h1+Scalar(2.0)*m_Rc);
-                Scalar vcap2 = pow((param.a2-h2),2) * (h2+Scalar(2.0)*param.a2); 
-                phi += (vcap1+vcap2);
+                if(r >= (m_Rc+param.a2))phi += Scalar(0.0);
+                else if(r<(m_Rc-param.a2)) phi += Scalar(4.0) * pow(param.a2,3);
+                else
+                    {
+                    Scalar h1 = (r*r+m_Rc*m_Rc-param.a2*param.a2)/(Scalar(2.0)*r);
+                    Scalar h2 = r-h1;
+                    Scalar vcap1 = pow((m_Rc-h1),2) * (h1+Scalar(2.0)*m_Rc);
+                    Scalar vcap2 = pow((param.a2-h2),2) * (h2+Scalar(2.0)*param.a2); 
+                    phi += (vcap1+vcap2);
+                    }
                 }
 
             bool executed = true;
@@ -434,9 +437,12 @@ void PotentialPairDLVOStokesDrag::computeForces(uint64_t timestep)
         unsigned int ptag = h_tag.data[mem_idx];
         if(typei==m_types)
             {
-            phi = phi / (Scalar(4.0) * pow(m_Rc,3));
             Scalar cor_fac = Scalar(1.0);
-            if(m_CorrReqd) cor_fac = pow((Scalar(1.0)-phi),2) / pow(Scalar(10.0),Scalar(1.82)*phi);
+            if(m_CorrReqd) 
+               {
+               phi = phi / (Scalar(4.0) * pow(m_Rc,3));
+               cor_fac = pow((Scalar(1.0)-phi),2) / pow(Scalar(10.0),Scalar(1.82)*phi);
+               }
             hoomd::RandomGenerator rng(hoomd::Seed(hoomd::RNGIdentifier::TwoStepLangevin, timestep, seed),
                                 hoomd::Counter(ptag));
             hoomd::UniformDistribution<Scalar> uniform(Scalar(-1), Scalar(1));
